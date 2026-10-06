@@ -90,7 +90,7 @@ fun ToolCard(tool: Tool, modifier: Modifier = Modifier, onClick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(tool.icon, null, tint = kopi.brand, modifier = Modifier.size(28.dp))
+            Icon(tool.icon, null, tint = kopi.accent, modifier = Modifier.size(28.dp))
             Spacer(Modifier.weight(1f))
             if (tool.comingSoon) {
                 Text(
