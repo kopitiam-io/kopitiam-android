@@ -1,7 +1,10 @@
 package io.kopitiam.app.ui.theme
 
 import android.provider.Settings
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -9,8 +12,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 // MARK: - Warm Kopi palette (matches iOS Theme.swift + web exactly)
@@ -34,21 +40,21 @@ val KopiLight = KopiColors(
     text = Color(0xFF1A1310),
     textSoft = Color(0xFF6B5D52),
     line = Color(0xFFE7DCCB),
-    accent = Color(0xFFC05621),
-    brand = Color(0xFF6F4E37),
+    accent = Color(0xFF1F6F5C),   // jade — brand accent (was burnt-orange)
+    brand = Color(0xFF6F4E37),    // warm brown — buttons/primary surfaces
     onBrand = Color(0xFFF7F1E8),
     dark = false,
 )
 
 val KopiDark = KopiColors(
-    bg = Color(0xFF2A1A12),
-    surface = Color(0xFF33251C),
+    bg = Color(0xFF221E1A),
+    surface = Color(0xFF2C2823),
     text = Color(0xFFF7F1E8),
     textSoft = Color(0xFFC9A876),
-    line = Color(0xFF4A3628),
-    accent = Color(0xFFE9843F),
+    line = Color(0xFF3D372F),
+    accent = Color(0xFF3FA98C),   // brighter jade for dark scheme
     brand = Color(0xFFC9A876),
-    onBrand = Color(0xFF2A1A12),
+    onBrand = Color(0xFF221E1A),
     dark = true,
 )
 
@@ -71,6 +77,44 @@ object Space {
 
 /** Access the resolved warm-kopi tokens from anywhere in the tree. */
 val LocalKopi = staticCompositionLocalOf { KopiLight }
+
+/**
+ * Nyonya-tile brand signature band — a thin Peranakan diamond-lattice strip.
+ * Mirrors the iOS NyonyaTileBand and the Play feature graphic: a kopi-brown
+ * diamond lattice with jade dots at the crossings, closed by a jade grout line.
+ * Restrained: one accent strip, never wallpaper.
+ */
+@Composable
+fun NyonyaTileBand(modifier: Modifier = Modifier, height: Dp = 14.dp) {
+    val jade = Color(0xFF1F6F5C)
+    val jadeDark = Color(0xFF144E40)
+    val kopi = Color(0xFFC68F52)
+    androidx.compose.foundation.Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height),
+    ) {
+        val h = size.height
+        val cell = h                    // one diamond per band-height square
+        val stroke = h * 0.14f
+        var x = 0f
+        // brown diamond lattice
+        while (x < size.width + cell) {
+            // ascending stroke of the diamond
+            drawLine(kopi, Offset(x, h), Offset(x + cell / 2, 0f), strokeWidth = stroke)
+            // descending stroke
+            drawLine(kopi, Offset(x + cell / 2, 0f), Offset(x + cell, h), strokeWidth = stroke)
+            // mirror the lower half for the lattice
+            drawLine(kopi, Offset(x, 0f), Offset(x + cell / 2, h), strokeWidth = stroke)
+            drawLine(kopi, Offset(x + cell / 2, h), Offset(x + cell, 0f), strokeWidth = stroke)
+            // jade dot at the crossing centre
+            drawCircle(jade, radius = h * 0.14f, center = Offset(x + cell / 2, h / 2))
+            x += cell
+        }
+        // jade grout line closing the band underneath
+        drawLine(jadeDark, Offset(0f, h), Offset(size.width, h), strokeWidth = h * 0.18f)
+    }
+}
 
 /**
  * True when the OS "Remove animations" accessibility setting is on. Used to
