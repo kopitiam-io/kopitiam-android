@@ -21,6 +21,7 @@ import io.kopitiam.app.ToolRegistry
 import io.kopitiam.app.ads.AdSlot
 import io.kopitiam.app.ui.components.ToolCard
 import io.kopitiam.app.ui.theme.LocalKopi
+import io.kopitiam.app.ui.theme.NyonyaTileBand
 import io.kopitiam.app.ui.theme.Space
 
 @Composable
@@ -36,6 +37,7 @@ fun HomeScreen(onOpenTool: (String) -> Unit) {
     ) {
         // Header
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            NyonyaTileBand(modifier = Modifier.fillMaxWidth().padding(bottom = Space.xs))
             Text(
                 "KOPITIAM", color = kopi.accent, fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
