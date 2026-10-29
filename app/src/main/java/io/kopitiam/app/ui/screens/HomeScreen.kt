@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.GridView
@@ -29,9 +30,12 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -67,6 +71,8 @@ import io.kopitiam.app.Tool
 import io.kopitiam.app.ToolCategory
 import io.kopitiam.app.ToolRegistry
 import io.kopitiam.app.ads.AdSlot
+import io.kopitiam.app.docs.DocumentStore
+import io.kopitiam.app.docs.SavedDocument
 import io.kopitiam.app.ui.theme.LocalKopi
 import io.kopitiam.app.ui.theme.NyonyaTileBand
 import io.kopitiam.app.ui.theme.Radius
@@ -87,7 +93,13 @@ private val quickItems = listOf(
 )
 
 @Composable
-fun HomeScreen(onOpenTool: (String) -> Unit, onShowAllTools: () -> Unit) {
+fun HomeScreen(
+    onOpenTool: (String) -> Unit,
+    onShowAllTools: () -> Unit,
+    recents: List<SavedDocument> = emptyList(),
+    onOpenDocument: (String) -> Unit = {},
+    onShowFiles: () -> Unit = {},
+) {
     val kopi = LocalKopi.current
     var query by rememberSaveable { mutableStateOf("") }
     Column(
@@ -124,6 +136,26 @@ fun HomeScreen(onOpenTool: (String) -> Unit, onShowAllTools: () -> Unit) {
                 ToolRegistry.tool(item.id)?.let { tool -> toolEntry(tool, item.label, onOpenTool) }
             } + GridEntry(Icons.Outlined.GridView, "All tools", isPdf = true, onClick = onShowAllTools)
             RoundGrid(entries)
+            if (recents.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Recents", color = kopi.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f).semantics { heading() },
+                        )
+                        Text(
+                            "View all", color = kopi.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clip(RoundedCornerShape(Radius.sm)).clickable(onClick = onShowFiles).padding(6.dp),
+                        )
+                    }
+                    FlatCard {
+                        recents.forEachIndexed { i, doc ->
+                            if (i > 0) RowDivider(start = 76.dp)
+                            DocumentRow(doc, onClick = { onOpenDocument(doc.id) })
+                        }
+                    }
+                }
+            }
             AdSlot(onOpenTool = onOpenTool)
         } else {
             ToolSearchResults(query, onOpenTool)
@@ -167,13 +199,16 @@ fun ToolsScreen(onOpenTool: (String) -> Unit) {
 
 // MARK: - Files tab
 
-/**
- * Kopitiam keeps no copies of documents yet, so Files is a starting point that
- * opens something from the phone rather than a library.
- */
+/** Saved scans (newest first), plus ways to add more. */
 @Composable
-fun FilesScreen(onOpenTool: (String) -> Unit) {
+fun FilesScreen(
+    onOpenTool: (String) -> Unit,
+    documents: List<SavedDocument> = emptyList(),
+    onOpenDocument: (String) -> Unit = {},
+) {
     val kopi = LocalKopi.current
+    val context = LocalContext.current
+    var pendingDelete by remember { mutableStateOf<SavedDocument?>(null) }
     Column(
         Modifier
             .fillMaxSize()
@@ -184,33 +219,57 @@ fun FilesScreen(onOpenTool: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Space.lg),
     ) {
         ScreenTitle("Files")
-        Column(
-            Modifier.fillMaxWidth().padding(top = Space.md),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Space.sm),
-        ) {
-            Box(
-                Modifier.size(84.dp).clip(CircleShape).background(kopi.accent.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Outlined.Folder, null, tint = kopi.accent, modifier = Modifier.size(40.dp))
-            }
-            Text(
-                "Your files stay on your phone", color = kopi.text, fontSize = 20.sp,
-                fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
-            )
-            Text(
-                "Kopitiam doesn't keep copies of your documents. Open one from your phone, or scan something new.",
-                color = kopi.textSoft, fontSize = 14.sp, textAlign = TextAlign.Center,
-            )
-        }
         FlatCard {
+            FlatRow(Icons.Outlined.PhotoCamera, kopi.accent, "Scan a document", "Use the camera") { onOpenTool("document") }
+            RowDivider()
             FlatRow(Icons.Outlined.Description, kopi.brand, "Open a PDF", "Edit, sign or highlight it") { onOpenTool("edit") }
             RowDivider()
             FlatRow(Icons.Outlined.PhotoLibrary, kopi.accent, "Turn photos into a PDF", "Pick images from your gallery") { onOpenTool("convert") }
-            RowDivider()
-            FlatRow(Icons.Outlined.PhotoCamera, kopi.accent, "Scan a document", "Use the camera") { onOpenTool("document") }
         }
+
+        SectionLabel("On this phone")
+        if (documents.isEmpty()) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.md),
+            ) {
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(kopi.accent.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Outlined.Folder, null, tint = kopi.accent) }
+                Text(
+                    "Nothing saved yet. Scans you make are kept here, on this phone only.",
+                    color = kopi.textSoft, fontSize = 14.sp,
+                )
+            }
+        } else {
+            FlatCard {
+                documents.forEachIndexed { i, doc ->
+                    if (i > 0) RowDivider(start = 76.dp)
+                    DocumentRow(doc, onClick = { onOpenDocument(doc.id) }) {
+                        IconButton(onClick = { pendingDelete = doc }) {
+                            Icon(Icons.Outlined.Delete, "Delete ${doc.name}", tint = kopi.textSoft)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pendingDelete?.let { doc ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Delete \u201C${doc.name}\u201D?") },
+            text = { Text("It will be removed from this phone. This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    DocumentStore.delete(context, doc)
+                    pendingDelete = null
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Cancel") } },
+        )
     }
 }
 
@@ -275,7 +334,7 @@ fun SettingsScreen(appearance: AppearanceChoice, onAppearance: (AppearanceChoice
             ) {
                 Icon(Icons.Outlined.Lock, null, tint = kopi.accent)
                 Text(
-                    "Your documents are processed on this phone and never uploaded.",
+                    "Your documents are processed on this phone and never uploaded. Saved scans stay on this phone.",
                     color = kopi.text, fontSize = 15.sp,
                 )
             }
