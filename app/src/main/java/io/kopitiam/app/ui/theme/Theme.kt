@@ -35,26 +35,27 @@ data class KopiColors(
 )
 
 val KopiLight = KopiColors(
-    bg = Color(0xFFF7F1E8),
+    bg = Color(0xFFF4F1E9),
     surface = Color(0xFFFFFDF9),
     text = Color(0xFF1A1310),
     textSoft = Color(0xFF6B5D52),
     line = Color(0xFFE7DCCB),
     accent = Color(0xFF1F6F5C),   // jade — brand accent (was burnt-orange)
     brand = Color(0xFF6F4E37),    // warm brown — buttons/primary surfaces
-    onBrand = Color(0xFFF7F1E8),
+    onBrand = Color(0xFFF4F1E9),
     dark = false,
 )
 
+// Jade-tinted dark, identical to iOS KopiTheme.dark().
 val KopiDark = KopiColors(
-    bg = Color(0xFF221E1A),
-    surface = Color(0xFF2C2823),
-    text = Color(0xFFF7F1E8),
-    textSoft = Color(0xFFC9A876),
-    line = Color(0xFF3D372F),
-    accent = Color(0xFF3FA98C),   // brighter jade for dark scheme
+    bg = Color(0xFF17211E),
+    surface = Color(0xFF1F2B27),
+    text = Color(0xFFF4F1E9),
+    textSoft = Color(0xFFA9B8B0),
+    line = Color(0xFF2E3D38),
+    accent = Color(0xFF4FB99E),   // brighter jade for dark scheme
     brand = Color(0xFFC9A876),
-    onBrand = Color(0xFF221E1A),
+    onBrand = Color(0xFF17211E),
     dark = true,
 )
 
