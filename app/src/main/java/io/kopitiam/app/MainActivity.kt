@@ -2,6 +2,7 @@ package io.kopitiam.app
 
 import android.content.Context
 import android.graphics.Color as AndroidColor
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -37,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,7 +60,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import io.kopitiam.app.docs.DocumentStore
+import io.kopitiam.app.scan.IdCardPdf
 import io.kopitiam.app.ui.screens.AppearanceChoice
+import io.kopitiam.app.ui.screens.DocumentDetailScreen
+import io.kopitiam.app.ui.screens.IdLayoutScreen
+import io.kopitiam.app.ui.screens.ScanHubScreen
+import io.kopitiam.app.ui.screens.ScanMode
 import io.kopitiam.app.ui.screens.ComingSoonScreen
 import io.kopitiam.app.ui.screens.CompressScreen
 import io.kopitiam.app.ui.screens.ConvertScreen
@@ -92,8 +100,13 @@ class MainActivity : ComponentActivity() {
         // Deep-link launch extras for deterministic verification screenshots:
         //   adb ... am start ... --es open <toolId>
         //   adb ... am start ... --es tab files|tools|settings
+        //   adb ... am start ... --es open hub:idCard   (scan hub at a mode)
+        //   adb ... am start ... --es open id-sample    (ID layout with sample cards)
+        //   adb ... am start ... --ez seed true         (sample documents for Recents)
         val openTool = intent?.getStringExtra("open")
         val openTab = intent?.getStringExtra("tab")
+        DocumentStore.reload(this)
+        if (intent?.getBooleanExtra("seed", false) == true) DocumentStore.seedSamplesIfEmpty(this)
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         setContent {
             var appearance by remember {
@@ -153,13 +166,22 @@ fun KopitiamApp(
 ) {
     val nav = rememberNavController()
     val start = when {
+        startTool == "id-sample" -> "idsample"
+        startTool != null && startTool.startsWith("hub:") -> "hub/${ScanMode.from(startTool.removePrefix("hub:")).key}"
         startTool != null && ToolRegistry.tool(startTool) != null -> "tool/$startTool"
         startTab != null && startTab in tabRoutes -> startTab
         else -> "home"
     }
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
-    val openTool: (String) -> Unit = { id -> nav.navigate("tool/$id") }
+    val documents by DocumentStore.documents.collectAsState()
+    // Scan tools open the scan hub; everything else opens its tool screen.
+    val openTool: (String) -> Unit = { id ->
+        val mode = ScanMode.forTool(id)
+        if (mode != null) nav.navigate("hub/${mode.key}") else nav.navigate("tool/$id")
+    }
+    val openDocument: (String) -> Unit = { id -> nav.navigate("doc/${Uri.encode(id)}") }
+    val back: () -> Unit = { if (!nav.popBackStack()) nav.navigate("home") }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -167,22 +189,47 @@ fun KopitiamApp(
             // The bar only shows on the four tab pages; tool screens get the full height.
             if (route in tabRoutes) {
                 FlatBottomBar(selectedRoute = route) { tab ->
-                    if (tab == ShellTab.SCAN) openTool("document") else nav.switchTab(tab.route)
+                    if (tab == ShellTab.SCAN) nav.navigate("hub/${ScanMode.SCAN.key}") else nav.switchTab(tab.route)
                 }
             }
         },
     ) { padding ->
         NavHost(navController = nav, startDestination = start, modifier = Modifier.padding(padding)) {
             composable("home") {
-                HomeScreen(onOpenTool = openTool, onShowAllTools = { nav.switchTab("tools") })
+                HomeScreen(
+                    onOpenTool = openTool,
+                    onShowAllTools = { nav.switchTab("tools") },
+                    recents = documents.take(3),
+                    onOpenDocument = openDocument,
+                    onShowFiles = { nav.switchTab("files") },
+                )
             }
-            composable("files") { FilesScreen(onOpenTool = openTool) }
+            composable("files") {
+                FilesScreen(onOpenTool = openTool, documents = documents, onOpenDocument = openDocument)
+            }
             composable("tools") { ToolsScreen(onOpenTool = openTool) }
             composable("settings") { SettingsScreen(appearance, onAppearance) }
             composable("tool/{id}") { entry ->
                 val id = entry.arguments?.getString("id") ?: return@composable
-                val back: () -> Unit = { if (!nav.popBackStack()) nav.navigate("home") }
                 ToolRoute(id, back)
+            }
+            composable("hub/{mode}") { entry ->
+                ScanHubScreen(
+                    initial = ScanMode.from(entry.arguments?.getString("mode")),
+                    onClose = back,
+                    onOpenDocument = { id ->
+                        // Replace the hub with the saved document, so Back returns to where Scan was opened.
+                        nav.navigate("doc/${Uri.encode(id)}") { popUpTo("hub/{mode}") { inclusive = true } }
+                    },
+                )
+            }
+            composable("doc/{id}") { entry ->
+                val id = entry.arguments?.getString("id") ?: return@composable
+                DocumentDetailScreen(id, back)
+            }
+            composable("idsample") {
+                val samples = remember { IdCardPdf.sampleCards() }
+                IdLayoutScreen(samples, onBack = back, onSaved = { doc -> openDocument(doc.id) })
             }
         }
     }

@@ -6,6 +6,9 @@
          installs and runs on the emulator (no camera). -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!-- Our own ID card camera (CameraX). Asked for only when ID Cards is used. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

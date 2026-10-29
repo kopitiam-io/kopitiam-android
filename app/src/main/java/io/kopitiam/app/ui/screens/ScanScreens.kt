@@ -33,9 +33,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.kopitiam.app.docs.DocumentStore
 import io.kopitiam.app.pdf.PdfEngine
 import io.kopitiam.app.pdf.Share
 import io.kopitiam.app.scan.DocumentScanner
+import io.kopitiam.app.scan.IdCardPdf
+import io.kopitiam.app.scan.IdPageLayout
+import io.kopitiam.app.scan.PaperSize
 import io.kopitiam.app.ui.components.AccentButton
 import io.kopitiam.app.ui.components.PrimaryButton
 import io.kopitiam.app.ui.components.ToolBody
@@ -80,10 +84,17 @@ private fun ScanTool(onBack: () -> Unit, title: String, intro: String, layout: S
             val pages: List<Bitmap> = DocumentScanner.pagesFrom(context, result.data)
             if (pages.isNotEmpty()) {
                 try {
-                    output = when (layout) {
+                    val made = when (layout) {
                         ScanLayout.ONE_PER_IMAGE -> PdfEngine.pdfFromImages(context, pages, outputName)
-                        ScanLayout.STACKED -> PdfEngine.stackedPdf(context, pages, outputName)
+                        // Real card size, not stretched to the page width.
+                        ScanLayout.STACKED -> IdCardPdf.make(
+                            context, pages, IdPageLayout.ONE_PAGE, PaperSize.regionDefault(), outputName,
+                        )
                     }
+                    // Keep a copy on the phone so it shows in Recents and Files.
+                    val prefix = if (layout == ScanLayout.STACKED) "ID Card" else "Scan"
+                    output = runCatching { DocumentStore.save(context, made, DocumentStore.title(prefix)).file }
+                        .getOrDefault(made)
                     pageCount = if (layout == ScanLayout.STACKED) 1 else pages.size
                     error = null
                 } catch (e: Exception) { error = e.message }
