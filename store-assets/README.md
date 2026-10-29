@@ -28,7 +28,8 @@ the rest at build). This folder is the explicit full set for App Store Connect /
 older tooling.
 
 ### `ios/screenshots/` — App Store screenshots (1206×2622, 6.9" class)
-- `01-home.png` — hero: "Every PDF tool, free." + tool grid (VERIFIED)
+- `01-home.png` — old UI ("Every PDF tool, free."). Needs re-capturing on the new
+  shell with the "Documents. Done here." headline.
 - `02-redact-detail.png` — Redact tool detail (VERIFIED)
 
 ## Android (`android/`)
@@ -38,10 +39,10 @@ older tooling.
 - `ic_launcher-{mdpi..xxxhdpi}.png` — legacy launcher PNG fallbacks (pre-API 26;
   API 26+ uses the vector adaptive icon in `app/src/main/res/`)
 
-### `android/feature-graphic-1024x500.png` — **required** Play Store feature graphic
-Brand gradient + coffee-cup mark + "Kopitiam / Every PDF tool, free." wordmark.
-Rendered pixel-accurate in a browser at a 1024×500 viewport (VERIFIED).
-Source: `android/feature-graphic.svg` / `android/fg.html`.
+### `feature-graphic-1024x500.png` — **required** Play Store feature graphic
+Cream canvas with Nyonya tile bands, jade cup mark, "Kopitiam" wordmark, and the
+headline "Documents. Done here." Rendered in a browser at a 1024×500 viewport.
+Source: `feature-graphic.html` (serve it over localhost and screenshot at 1024×500).
 
 ## Known gap — deeper feature screenshots
 Home + one tool-detail screen are captured at store resolution. The *working*
