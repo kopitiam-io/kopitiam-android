@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
@@ -84,6 +86,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -254,7 +257,14 @@ private fun CardViewfinder(onDone: (List<Bitmap>) -> Unit) {
                                                 image.close()
                                                 val cropped = cropToGuide(full, guide, viewW, viewH)
                                                 if (cropped !== full) full.recycle()
-                                                cropped
+                                                // Find the card's edges and straighten it; keep the guide crop if not found.
+                                                val straight = straighten(cropped)
+                                                if (straight != null) {
+                                                    cropped.recycle()
+                                                    straight
+                                                } else {
+                                                    cropped
+                                                }
                                             }
                                             captured.add(card)
                                             busy = false
@@ -324,8 +334,9 @@ private fun cropToGuide(photo: Bitmap, guide: Rect, viewW: Float, viewH: Float):
     val scale = max(viewW / iw, viewH / ih)
     val ox = (iw * scale - viewW) / 2f
     val oy = (ih * scale - viewH) / 2f
-    val slackX = guide.width * 0.03f
-    val slackY = guide.height * 0.03f
+    // Enough slack that the card's real edges sit inside the crop for straightening.
+    val slackX = guide.width * 0.08f
+    val slackY = guide.height * 0.08f
     val left = ((guide.left - slackX + ox) / scale).coerceIn(0f, iw - 1f)
     val top = ((guide.top - slackY + oy) / scale).coerceIn(0f, ih - 1f)
     val right = ((guide.right + slackX + ox) / scale).coerceIn(left + 1f, iw)
@@ -334,6 +345,36 @@ private fun cropToGuide(photo: Bitmap, guide: Rect, viewW: Float, viewH: Float):
         photo, left.toInt(), top.toInt(),
         (right - left).toInt().coerceAtLeast(1), (bottom - top).toInt().coerceAtLeast(1),
     )
+}
+
+/**
+ * Detect the card's four corners on a downscaled copy, then warp the full-size
+ * crop into a flat card-shaped image. Returns null when no card is found.
+ */
+private fun straighten(src: Bitmap): Bitmap? {
+    if (src.width < 64 || src.height < 64) return null
+    val sw = 400
+    val sh = (sw.toFloat() * src.height / src.width).roundToInt().coerceAtLeast(32)
+    val small = Bitmap.createScaledBitmap(src, sw, sh, true)
+    val pixels = IntArray(sw * sh)
+    small.getPixels(pixels, 0, sw, 0, 0, sw, sh)
+    if (small !== src) small.recycle()
+    val gray = FloatArray(pixels.size) { i ->
+        val p = pixels[i]
+        0.299f * ((p shr 16) and 0xFF) + 0.587f * ((p shr 8) and 0xFF) + 0.114f * (p and 0xFF)
+    }
+    val quad = CardEdges.detect(gray, sw, sh)?.scaled(src.width.toFloat() / sw) ?: return null
+
+    val topLen = hypot(quad.trX - quad.tlX, quad.trY - quad.tlY)
+    val bottomLen = hypot(quad.brX - quad.blX, quad.brY - quad.blY)
+    val outW = max(topLen, bottomLen).roundToInt().coerceIn(200, 2000)
+    val outH = (outW / IdCardPdf.RATIO).roundToInt()
+    val dst = floatArrayOf(0f, 0f, outW.toFloat(), 0f, outW.toFloat(), outH.toFloat(), 0f, outH.toFloat())
+    val matrix = Matrix()
+    if (!matrix.setPolyToPoly(quad.toArray(), 0, dst, 0, 4)) return null
+    val out = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
+    AndroidCanvas(out).drawBitmap(src, matrix, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+    return out
 }
 
 @Composable
